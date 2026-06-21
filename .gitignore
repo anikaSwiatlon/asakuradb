@@ -3,3 +3,4 @@
 
 # Output binaries
 zig-out/
+scratch.bin
