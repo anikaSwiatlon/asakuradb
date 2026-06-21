@@ -1,1 +1,5 @@
+# Cache files
 .zig-cache/
+
+# Output binaries
+zig-out/

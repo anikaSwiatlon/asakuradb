@@ -1,25 +1,27 @@
 const std = @import("std");
 
-/// error union return type function - allows using 'try' inside it
-pub fn main() !void {
-    // Set up debug allocator
-    var debug_allocator = std.heap.DebugAllocator(.{}){};
+/// Defining own error set
+const DbError = error{
+    KeyNotFount,
+    Corrupted,
+};
 
-    defer {
-        const leaked = debug_allocator.deinit();
-        if (leaked == .leak) std.debug.print("MEMORY LEAKED!\n", .{});
-    }
+fn lookup(key: []const u8) DbError!u64 {
+    if (key.len == 0) return DbError.KeyNotFount;
+    if (key[0] == '!') return DbError.Corrupted;
 
-    const allocator = debug_allocator.allocator();
+    return 1234; // happy path
+}
 
-    // Allocate a buffer of 16 bytes
+pub fn main() void {
+    const v1 = lookup("!bad") catch |err| {
+        std.debug.print("lookup failed, error: {s}\n", .{@errorName(err)});
+        return;
+    };
+    std.debug.print("got {d}\n", .{v1});
 
-    const buf = try allocator.alloc(u8, 16);
+    // catch can supply default value
+    const v2 = lookup("") catch 0;
 
-    defer allocator.free(buf);
-
-    @memset(buf, 0);
-
-    buf[0] = 42;
-    std.debug.print("first byte = {d}\n", .{buf[0]});
+    std.debug.print("got {d}\n", .{v2});
 }
