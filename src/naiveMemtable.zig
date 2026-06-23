@@ -29,7 +29,7 @@ const Memtable = struct {
 
         while (it.next()) |entry| {
             self.allocator.free(entry.key_ptr.*);
-            self.allocator.free(entry.value_ptr.*);
+            self.allocator.free(entry.value_ptr.data);
         }
         self.map.deinit();
     }
@@ -97,11 +97,22 @@ test Memtable {
     var mt = Memtable.init(a);
     defer mt.deinit();
 
-    try mt.put("name", "asakura");
+    try mt.put("name", "asakura", 10);
     try std.testing.expectEqualStrings("asakura", mt.get("name").?);
 
-    try mt.put("name", "sakura");
+    try mt.put("name", "sakura", 20);
     try std.testing.expectEqualStrings("sakura", mt.get("name").?);
 
     try std.testing.expect(mt.get("missing") == null);
+
+    try mt.delete("name", 30);
+    try std.testing.expect(mt.get("name") == null);
+
+    // Older timestamp than delete <- should be discarded
+    try mt.put("name", "stale_val", 25);
+    try std.testing.expect(mt.get("name") == null);
+
+    // Newer timestamp, should ressurect
+    try mt.put("name", "asakuraV2", 40);
+    try std.testing.expectEqualStrings("asakuraV2", mt.get("name").?);
 }
