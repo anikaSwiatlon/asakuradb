@@ -1,5 +1,6 @@
 const std = @import("std");
 const memtable = @import("Memtable.zig");
+const compareKeys = @import("compareKeys.zig");
 
 const MAX_LEVEL = 16; // 2 ^ 16 entries
 
@@ -53,6 +54,63 @@ const SkipList = struct {
         while (h < MAX_LEVEL and self.rng.random().boolean()) : (h += 1) {}
         return h;
     }
+
+    /// Recording a predecessor at each level. If the key exist at level 0
+    /// this means overwrite. If not creates new node, picks a height
+    /// and grows the level if needed
+    fn insert(self: *SkipList, key: []const u8, cell: memtable.Cell) !void {
+        var update: [MAX_LEVEL]?*Node = .{null} ** MAX_LEVEL;
+        var x: *Node = self.head;
+
+        // TODO: Refactor to lower level functions
+
+        // RECORDING
+        var i: usize = self.level;
+        while (i > 0) {
+            i -= 1;
+            while (x.forward[i]) |next| {
+                if (compareKeys.compareKeys(next.key, key) == .lt) {
+                    x = next;
+                } else break;
+            }
+            update[i] = x;
+        }
+
+        // OVERWRITE CHECK
+        if (x.forward[0]) |next| {
+            if (compareKeys.compareKeys((next.key), key) == .eq) {
+                if (cell.timestamp < next.cell.timestamp) {
+                    self.allocator.free(cell.data);
+                    return;
+                }
+                self.allocator.free(next.cell.data);
+                next.cell = cell;
+                return;
+            }
+        }
+
+        // NEW NODE CREATION
+        const height = self.randomHeight();
+        if (height > self.level) {
+            var j = self.level;
+            while (j < height) : (j += 1) update[j] = self.head;
+            self.level = height;
+        }
+
+        const node = try self.allocator.create(Node);
+        node.forward = try self.allocator.alloc(?*Node, height);
+        node.key = try self.allocator.dupe(u8, key);
+        node.cell = cell;
+
+        // INSERT INTO EACH LINE UP TO HEIGHT
+
+        var k: usize = 0;
+        while (k < height) : (k += 1) {
+            const pred = update[k].?;
+            node.forward[k] = pred.forward[k];
+            pred.forward[k] = node;
+        }
+    }
 };
 
 test SkipList {
@@ -61,4 +119,27 @@ test SkipList {
     defer s1.deinit();
 
     try std.testing.expect(s1.level == 1);
+}
+
+test "skip list insert keeps sorted order" {
+    const a = std.testing.allocator;
+    var s1 = try SkipList.init(a, 1);
+    defer s1.deinit();
+
+    const c = memtable.Cell{ .kind = .put, .timestamp = 1, .data = "" };
+
+    try s1.insert("m", c);
+    try s1.insert("a", c);
+    try s1.insert("z", c);
+    try s1.insert("d", c);
+
+    // test level 0
+
+    var node = s1.head.forward[0];
+    var prev: []const u8 = "";
+    while (node) |n| {
+        try std.testing.expect(compareKeys.compareKeys(prev, n.key) == .lt);
+        prev = n.key;
+        node = n.forward[0];
+    }
 }
