@@ -1,9 +1,9 @@
 const std = @import("std");
 
 // Cassandra uses only soft delete marking deleted value as tombstone
-const ValueKind = enum { put, tombstone };
+pub const ValueKind = enum { put, tombstone };
 
-const Cell = struct {
+pub const Cell = struct {
     kind: ValueKind,
     timestamp: u64, // higher = newer; newest is the one read
     data: []const u8, // Empty for a tombstone

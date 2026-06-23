@@ -3,7 +3,7 @@ const expect = std.testing.expect;
 
 const Order = enum { lt, eq, gt };
 
-fn compareKeys(a: []const u8, b: []const u8) Order {
+pub fn compareKeys(a: []const u8, b: []const u8) Order {
     const min_len = @min(a.len, b.len);
     var i: usize = 0;
 
