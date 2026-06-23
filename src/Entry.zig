@@ -27,6 +27,8 @@ fn sortedEntries(
     return slice;
 }
 
+// Unused name would throw error so we mark unused parameter
+// as "_" so it gets recognized as deliberately left out
 fn lessThan(_: void, a: Entry, b: Entry) bool {
     return compareKeys.compareKeys(a.key, b.key) == .lt;
 }
