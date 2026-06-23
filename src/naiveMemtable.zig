@@ -1,5 +1,8 @@
 const std = @import("std");
 
+// Cassandra uses only soft delete marking deleted value as tombstone
+const ValueKind = enum { put, tombstone };
+
 const Memtable = struct {
     map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
@@ -49,7 +52,7 @@ const Memtable = struct {
     }
 };
 
-test "memtablePutGetOverwrite" {
+test Memtable {
 
     // std testing allocator fails if memory leaks
     const a = std.testing.allocator;
