@@ -111,9 +111,50 @@ const SkipList = struct {
             pred.forward[k] = node;
         }
     }
+
+    fn get(self: *SkipList, key: []const u8) ?[]const u8 {
+        var x: *Node = self.head;
+        var i: usize = self.level;
+
+        while (i > 0) {
+            i -= 1;
+            while (x.forward[i]) |next| {
+                if (compareKeys.compareKeys(next.key, key) == .lt) x = next else break;
+            }
+        }
+
+        if (x.forward[0]) |candidate| {
+            if (compareKeys.compareKeys(candidate.key, key) == .eq) {
+                if (candidate.cell.kind == .tombstone) return null;
+                return candidate.cell.data;
+            }
+        }
+        return null;
+    }
+
+    const Cursor = struct {
+        node: ?*Node,
+        fn next(self: *Cursor) ?*Node {
+            const n = self.node orelse return null;
+            self.node = n.forward[0];
+            return n;
+        }
+    };
+
+    fn scanFrom(self: *SkipList, start: []const u8) Cursor {
+        var x: *Node = self.head;
+        var i: usize = self.level;
+        while (i > 0) {
+            i -= 1;
+            while (x.forward[i]) |next| {
+                if (compareKeys.compareKeys(next.key, start) == .lt) x = next else break;
+            }
+        }
+        return .{ .node = x.forward[0] };
+    }
 };
 
-test SkipList {
+test "skip list height allocator" {
     const a = std.testing.allocator;
     var s1 = try SkipList.init(a, 0xCAFE);
     defer s1.deinit();
@@ -142,4 +183,26 @@ test "skip list insert keeps sorted order" {
         prev = n.key;
         node = n.forward[0];
     }
+}
+
+test "search and range scan" {
+    const a = std.testing.allocator;
+    var sl = try SkipList.init(a, 21);
+    defer sl.deinit();
+
+    for ([_][]const u8{ "a", "b", "c", "d", "e" }) |k| {
+        const data = try a.dupe(u8, "x");
+        const c = memtable.Cell{ .kind = .put, .timestamp = 1, .data = data };
+        try sl.insert(k, c);
+    }
+
+    try std.testing.expectEqualStrings("x", sl.get("c").?);
+    try std.testing.expect(sl.get("zzz") == null);
+
+    var cur = sl.scanFrom("c");
+    var seen: std.ArrayListUnmanaged(u8) = .empty;
+    defer seen.deinit(a);
+
+    while (cur.next()) |n| try seen.append(a, n.key[0]);
+    try std.testing.expectEqualStrings("cde", seen.items);
 }
